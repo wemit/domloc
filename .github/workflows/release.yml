@@ -27,23 +27,13 @@ jobs:
         run: |
           mkdir -p dist
           VERSION=${GITHUB_REF_NAME}
-          for GOOS in darwin linux; do
-            for GOARCH in amd64 arm64; do
-              GOOS=$GOOS GOARCH=$GOARCH go build \
-                -ldflags "-X main.version=$VERSION -s -w" \
-                -o dist/domloc \
-                ./cmd/domloc
-              tar -czf dist/domloc-${GOOS}-${GOARCH}.tar.gz -C dist domloc
-              rm dist/domloc
-            done
-          done
           for GOARCH in amd64 arm64; do
-            GOOS=windows GOARCH=$GOARCH go build \
+            GOOS=darwin GOARCH=$GOARCH go build \
               -ldflags "-X main.version=$VERSION -s -w" \
-              -o dist/domloc.exe \
+              -o dist/domloc \
               ./cmd/domloc
-            zip dist/domloc-windows-${GOARCH}.zip dist/domloc.exe
-            rm dist/domloc.exe
+            tar -czf dist/domloc-darwin-${GOARCH}.tar.gz -C dist domloc
+            rm dist/domloc
           done
 
       - name: Create checksums
