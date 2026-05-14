@@ -50,6 +50,9 @@ type plistData struct {
 }
 
 func Install(caddyfilePath string) error {
+	if platform.Current() == platform.Linux {
+		return installLinux(caddyfilePath)
+	}
 	caddyBin, err := findCaddy()
 	if err != nil {
 		return err
@@ -97,22 +100,34 @@ func Install(caddyfilePath string) error {
 }
 
 func Reload(caddyfilePath string) error {
+	if platform.Current() == platform.Linux {
+		return reloadLinux(caddyfilePath)
+	}
 	_, err := platform.RunCommand("caddy", "reload", "--config", caddyfilePath)
 	return err
 }
 
 func Uninstall() error {
+	if platform.Current() == platform.Linux {
+		return uninstallLinux()
+	}
 	_ = platform.RunSudoQuiet("launchctl", "unload", plistDst)
 	_ = platform.RunSudoQuiet("rm", "-f", plistDst)
 	return nil
 }
 
 func IsInstalled() bool {
+	if platform.Current() == platform.Linux {
+		return isInstalledLinux()
+	}
 	_, err := os.Stat(plistDst)
 	return err == nil
 }
 
 func IsRunning() bool {
+	if platform.Current() == platform.Linux {
+		return isRunningLinux()
+	}
 	out, err := platform.RunCommand("launchctl", "list", label)
 	if err != nil {
 		return false

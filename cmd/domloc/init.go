@@ -23,8 +23,9 @@ func initCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ui.Header("Initializing domloc")
 
-			if platform.Current() != platform.MacOS {
-				ui.Fatalf("only macOS supported in this release")
+			p := platform.Current()
+			if p != platform.MacOS && p != platform.Linux {
+				ui.Fatalf("only macOS and Linux are supported")
 			}
 
 			if !dns.IsInstalled() {

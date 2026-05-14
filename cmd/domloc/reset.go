@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wemit/domloc/internal/platform"
@@ -27,28 +28,61 @@ Routes are preserved unless --hard is passed.`,
 			}
 			configDir := filepath.Join(home, ".config", "domloc")
 
-			caddyPlist := "/Library/LaunchDaemons/com.domloc.caddy.plist"
-			if _, err := os.Stat(caddyPlist); err == nil {
-				_ = platform.RunSudoQuiet("launchctl", "unload", caddyPlist)
-				_ = platform.RunSudoQuiet("rm", "-f", caddyPlist)
-				ui.OK("Caddy launchd daemon removed")
+			if platform.Current() == platform.Linux {
+				caddyService := "/etc/systemd/system/domloc-caddy.service"
+				if _, err := os.Stat(caddyService); err == nil {
+					_ = platform.RunSudoQuiet("systemctl", "disable", "--now", "domloc-caddy")
+					_ = platform.RunSudoQuiet("rm", "-f", caddyService)
+					_ = platform.RunSudoQuiet("systemctl", "daemon-reload")
+					ui.OK("Caddy systemd service removed")
+				}
+			} else {
+				caddyPlist := "/Library/LaunchDaemons/com.domloc.caddy.plist"
+				if _, err := os.Stat(caddyPlist); err == nil {
+					_ = platform.RunSudoQuiet("launchctl", "unload", caddyPlist)
+					_ = platform.RunSudoQuiet("rm", "-f", caddyPlist)
+					ui.OK("Caddy launchd daemon removed")
+				}
 			}
 			_, _ = platform.RunCommand("pkill", "-f", "caddy")
 
-			dnsmasqAgent := filepath.Join(home, "Library", "LaunchAgents", "com.domloc.dnsmasq.plist")
-			if _, err := os.Stat(dnsmasqAgent); err == nil {
-				_, _ = platform.RunCommand("launchctl", "unload", dnsmasqAgent)
-				_ = os.Remove(dnsmasqAgent)
-				ui.OK("dnsmasq LaunchAgent removed")
+			if platform.Current() == platform.Linux {
+				dnsmasqAgent := filepath.Join(home, ".config", "systemd", "user", "domloc-dnsmasq.service")
+				if _, err := os.Stat(dnsmasqAgent); err == nil {
+					_, _ = platform.RunCommand("systemctl", "--user", "disable", "--now", "domloc-dnsmasq")
+					_ = os.Remove(dnsmasqAgent)
+					_, _ = platform.RunCommand("systemctl", "--user", "daemon-reload")
+					ui.OK("dnsmasq systemd user service removed")
+				}
+			} else {
+				dnsmasqAgent := filepath.Join(home, "Library", "LaunchAgents", "com.domloc.dnsmasq.plist")
+				if _, err := os.Stat(dnsmasqAgent); err == nil {
+					_, _ = platform.RunCommand("launchctl", "unload", dnsmasqAgent)
+					_ = os.Remove(dnsmasqAgent)
+					ui.OK("dnsmasq LaunchAgent removed")
+				}
 			}
 
-			resolverDir := "/etc/resolver"
-			if entries, err := os.ReadDir(resolverDir); err == nil {
-				for _, e := range entries {
-					content, err := os.ReadFile(filepath.Join(resolverDir, e.Name()))
-					if err == nil && isDomlocResolver(string(content)) {
-						_ = platform.RunSudoQuiet("rm", "-f", filepath.Join(resolverDir, e.Name()))
-						ui.OK(fmt.Sprintf("removed /etc/resolver/%s", e.Name()))
+			if platform.Current() == platform.Linux {
+				resolvedDir := "/etc/systemd/resolved.conf.d"
+				if entries, err := os.ReadDir(resolvedDir); err == nil {
+					for _, e := range entries {
+						if strings.HasPrefix(e.Name(), "domloc-") && strings.HasSuffix(e.Name(), ".conf") {
+							_ = platform.RunSudoQuiet("rm", "-f", filepath.Join(resolvedDir, e.Name()))
+							ui.OK(fmt.Sprintf("removed %s/%s", resolvedDir, e.Name()))
+						}
+					}
+					_ = platform.RunSudoQuiet("systemctl", "restart", "systemd-resolved")
+				}
+			} else {
+				resolverDir := "/etc/resolver"
+				if entries, err := os.ReadDir(resolverDir); err == nil {
+					for _, e := range entries {
+						content, err := os.ReadFile(filepath.Join(resolverDir, e.Name()))
+						if err == nil && isDomlocResolver(string(content)) {
+							_ = platform.RunSudoQuiet("rm", "-f", filepath.Join(resolverDir, e.Name()))
+							ui.OK(fmt.Sprintf("removed /etc/resolver/%s", e.Name()))
+						}
 					}
 				}
 			}

@@ -39,6 +39,11 @@ func agentPlistPath() string {
 	return filepath.Join(home, "Library", "LaunchAgents", "com.domloc.dnsmasq.plist")
 }
 
+func agentServicePathLinux() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "systemd", "user", "domloc-dnsmasq.service")
+}
+
 const agentPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -67,6 +72,99 @@ type agentPlistData struct {
 	DnsmasqBin string
 	ConfFile   string
 	LogFile    string
+}
+
+const agentServiceTemplateLinux = `[Unit]
+Description=dnsmasq DNS server (domloc)
+After=network.target
+
+[Service]
+ExecStart={{.DnsmasqBin}} --no-daemon --conf-file={{.ConfFile}}
+Restart=always
+RestartSec=2
+StandardOutput=append:{{.LogFile}}
+StandardError=append:{{.LogFile}}
+
+[Install]
+WantedBy=default.target
+`
+
+func installAgentLinux() error {
+	bin, err := findDnsmasq()
+	if err != nil {
+		return err
+	}
+	home, _ := os.UserHomeDir()
+	logFile := filepath.Join(home, ".config", "domloc", "dnsmasq.log")
+
+	tmpl, err := template.New("agent-linux").Parse(agentServiceTemplateLinux)
+	if err != nil {
+		return err
+	}
+	svcPath := agentServicePathLinux()
+	if err := os.MkdirAll(filepath.Dir(svcPath), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(svcPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := tmpl.Execute(f, agentPlistData{
+		DnsmasqBin: bin,
+		ConfFile:   confPath(),
+		LogFile:    logFile,
+	}); err != nil {
+		return err
+	}
+
+	if _, err := platform.RunCommand("systemctl", "--user", "daemon-reload"); err != nil {
+		return fmt.Errorf("systemctl user daemon-reload: %w", err)
+	}
+	if _, err := platform.RunCommand("systemctl", "--user", "enable", "--now", "domloc-dnsmasq"); err != nil {
+		return fmt.Errorf("systemctl user enable: %w", err)
+	}
+	_, _ = platform.RunCommand("loginctl", "enable-linger")
+	return waitForDNS(5 * time.Second)
+}
+
+func restartAgentLinux() error {
+	if _, err := platform.RunCommand("systemctl", "--user", "restart", "domloc-dnsmasq"); err != nil {
+		return fmt.Errorf("systemctl user restart: %w", err)
+	}
+	return waitForDNS(5 * time.Second)
+}
+
+func isAgentRunningLinux() bool {
+	out, err := platform.RunCommand("systemctl", "--user", "is-active", "domloc-dnsmasq")
+	return err == nil && strings.TrimSpace(out) == "active"
+}
+
+func installResolverLinux(tld string) error {
+	dir := "/etc/systemd/resolved.conf.d"
+	confFile := filepath.Join(dir, fmt.Sprintf("domloc-%s.conf", tld))
+	content := fmt.Sprintf("[Resolve]\nDNS=127.0.0.1:5300\nDomains=~%s\n", tld)
+
+	tmp, err := os.CreateTemp("", "domloc-resolved-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(content); err != nil {
+		return err
+	}
+	tmp.Close()
+
+	if err := platform.RunSudo("mkdir", "-p", dir); err != nil {
+		return fmt.Errorf("mkdir resolved.conf.d: %w", err)
+	}
+	if err := platform.RunSudo("cp", tmp.Name(), confFile); err != nil {
+		return fmt.Errorf("write resolved drop-in: %w", err)
+	}
+	if err := platform.RunSudo("systemctl", "restart", "systemd-resolved"); err != nil {
+		return fmt.Errorf("restart systemd-resolved: %w", err)
+	}
+	return nil
 }
 
 func ConfigureTLD(tld string) error {
@@ -141,6 +239,9 @@ func loadTLDs() ([]string, error) {
 }
 
 func InstallAgent() error {
+	if platform.Current() == platform.Linux {
+		return installAgentLinux()
+	}
 	bin, err := findDnsmasq()
 	if err != nil {
 		return err
@@ -177,6 +278,9 @@ func InstallAgent() error {
 }
 
 func RestartAgent() error {
+	if platform.Current() == platform.Linux {
+		return restartAgentLinux()
+	}
 	_, _ = platform.RunCommand("launchctl", "unload", agentPlistPath())
 	_, err := platform.RunCommand("launchctl", "load", "-w", agentPlistPath())
 	if err != nil {
@@ -186,6 +290,9 @@ func RestartAgent() error {
 }
 
 func InstallResolver(tld string) error {
+	if platform.Current() == platform.Linux {
+		return installResolverLinux(tld)
+	}
 	resolverDir, err := platform.ResolverDir()
 	if err != nil {
 		return err
@@ -240,6 +347,9 @@ func IsInstalled() bool {
 }
 
 func IsAgentRunning() bool {
+	if platform.Current() == platform.Linux {
+		return isAgentRunningLinux()
+	}
 	out, err := platform.RunCommand("launchctl", "list", "com.domloc.dnsmasq")
 	return err == nil && strings.Contains(out, "com.domloc.dnsmasq")
 }

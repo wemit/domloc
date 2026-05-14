@@ -25,7 +25,7 @@ Requires [Homebrew](https://brew.sh). Installs `dnsmasq` and `caddy` automatical
 Install dependencies, start services, and trust the local HTTPS CA.
 
 ```bash
-domloc init           # HTTPS — trusts local CA (sudo/Touch ID once)
+domloc init             # HTTPS — trusts local CA (sudo once)
 domloc init --no-https  # HTTP only — skips CA trust, sets HTTP as default for add/wildcard
 ```
 
@@ -38,7 +38,7 @@ domloc add app.test 3000            # uses HTTPS default from init
 domloc add api.test 4000 --no-https # HTTP regardless of init setting
 ```
 
-DNS for the TLD is configured automatically on first use — writes `/etc/resolver/<tld>` (requires sudo once per TLD).
+DNS for the TLD is configured automatically on first use — writes a resolver config (requires sudo once per TLD).
 
 ### `domloc wildcard <pattern> <port>`
 
@@ -92,20 +92,28 @@ domloc uses [Caddy](https://caddyserver.com)'s built-in local CA — no mkcert, 
 
 | Step | Sudo | When |
 |---|---|---|
-| dnsmasq LaunchAgent | No | `domloc init` — user-space, port 5300 |
-| Caddy LaunchDaemon | Yes | `domloc init` — once, ports 80/443 are privileged |
-| CA trust | Yes (Touch ID) | `domloc init` — once, installs CA in system keychain |
-| DNS resolver file | Yes | First `add` per TLD — writes `/etc/resolver/<tld>` |
+| dnsmasq agent | No | `domloc init` — user-space, port 5300 |
+| Caddy service | Yes | `domloc init` — once, ports 80/443 are privileged |
+| CA trust | Yes | `domloc init` — once, installs CA in system trust store |
+| DNS resolver config | Yes | First `add` per TLD — once per TLD, never again |
 | `caddy reload` | No | Every `add` / `remove` — uses admin API |
 
 `--no-https` on `init` sets HTTP as the default for all subsequent `add` and `wildcard` calls. Per-route override always available:
 
 ```bash
 domloc init --no-https
-domloc add app.test 3000              # http://app.test (default)
-domloc add api.test 4000              # http://api.test (default)
-domloc add admin.test 5000 --no-https=false  # https://admin.test (explicit override)
+domloc add app.test 3000                 # http://app.test (default)
+domloc add admin.test 5000 --no-https=false  # https://admin.test (explicit)
 ```
+
+---
+
+## Existing Caddy or dnsmasq
+
+domloc does not touch your existing Caddy or dnsmasq configuration.
+
+- **Caddy already running**: domloc detects the admin API at `localhost:2019` and injects its routes into a dedicated `domloc` server block via the JSON API. Your other servers and config are untouched.
+- **dnsmasq already running**: domloc runs its own dnsmasq instance on port 5300 as a separate user-space service. It writes its own config at `~/.config/domloc/dnsmasq.conf` and never touches your existing dnsmasq.
 
 ---
 
@@ -114,17 +122,17 @@ domloc add admin.test 5000 --no-https=false  # https://admin.test (explicit over
 ```
 Browser
   ↓
-Caddy (ports 443/80)       ← LaunchDaemon, runs as root
+Caddy (ports 443/80)       ← system service, runs as root
   ↓
 localhost:PORT
 
-dnsmasq (port 5300)        ← LaunchAgent, runs as user
+dnsmasq (port 5300)        ← user-space service
   resolves *.test → 127.0.0.1
-
-/etc/resolver/test
-  nameserver 127.0.0.1
-  port 5300
 ```
+
+**macOS**: Caddy runs as a LaunchDaemon. dnsmasq runs as a LaunchAgent. DNS routing via `/etc/resolver/<tld>`.
+
+**Linux**: Caddy runs as a systemd system service. dnsmasq runs as a systemd user service. DNS routing via systemd-resolved drop-in at `/etc/systemd/resolved.conf.d/domloc-<tld>.conf`.
 
 State lives in `~/.config/domloc/`:
 
@@ -144,11 +152,5 @@ State lives in `~/.config/domloc/`:
 | Platform | Status |
 |---|---|
 | macOS | ✓ Supported |
-| Linux | Planned |
+| Linux | ✓ Supported |
 | Windows | Planned |
-
----
-
-## License
-
-MIT
