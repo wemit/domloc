@@ -9,12 +9,23 @@ domloc add app.test 3000
 
 ## Install
 
+**macOS**
 ```bash
 brew install wemit/domloc/domloc
+```
+
+**Linux**
+```bash
+curl -fsSL https://github.com/wemit/domloc/releases/latest/download/domloc-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xz
+sudo mv domloc /usr/local/bin/
+```
+
+Then:
+```bash
 domloc init
 ```
 
-Requires [Homebrew](https://brew.sh). Installs `dnsmasq` and `caddy` automatically if missing.
+Requires `dnsmasq` and `caddy` — installed automatically via Homebrew if available, otherwise install manually before running `domloc init`.
 
 ---
 
