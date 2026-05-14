@@ -1,6 +1,6 @@
 # domloc
 
-Map local domains to ports. Zero config. Reliable HTTPS.
+Map local domains to ports. Zero config.
 
 ```bash
 domloc add app.test 3000
@@ -25,7 +25,11 @@ Then:
 domloc init
 ```
 
-On macOS, requires [Homebrew](https://brew.sh) — `dnsmasq` and `caddy` are installed automatically. On Debian/Ubuntu they are also installed automatically via apt. For other Linux distributions, install `dnsmasq` and `caddy` manually before running `domloc init`.
+On macOS, requires [Homebrew](https://brew.sh) — `dnsmasq` and `caddy` are installed automatically. 
+
+On Debian/Ubuntu they are also installed automatically via apt. 
+
+For other Linux distributions, install `dnsmasq` and `caddy` manually before running `domloc init`.
 
 ---
 
@@ -36,8 +40,8 @@ On macOS, requires [Homebrew](https://brew.sh) — `dnsmasq` and `caddy` are ins
 Install dependencies, start services, and trust the local HTTPS CA.
 
 ```bash
-domloc init             # HTTPS — trusts local CA (sudo once)
-domloc init --no-https  # HTTP only — skips CA trust, sets HTTP as default for add/wildcard
+domloc init               # HTTPS — trusts local CA (sudo once)
+domloc init --no-https    # HTTP only — skips CA trust, sets HTTP as default for add/wildcard
 ```
 
 ### `domloc add <domain> <port>`
@@ -45,8 +49,8 @@ domloc init --no-https  # HTTP only — skips CA trust, sets HTTP as default for
 Route a domain to a local port.
 
 ```bash
-domloc add app.test 3000            # uses HTTPS default from init
-domloc add api.test 4000 --no-https # HTTP regardless of init setting
+domloc add app.test 3000              # uses HTTPS default from init
+domloc add api.test 4000 --no-https   # HTTP regardless of init setting
 ```
 
 DNS for the TLD is configured automatically on first use — writes a resolver config (requires sudo once per TLD).
@@ -113,8 +117,8 @@ domloc uses [Caddy](https://caddyserver.com)'s built-in local CA — no mkcert, 
 
 ```bash
 domloc init --no-https
-domloc add app.test 3000                 # http://app.test (default)
-domloc add admin.test 5000 --no-https=false  # https://admin.test (explicit)
+domloc add app.test 3000                       # http://app.test (default)
+domloc add admin.test 5000 --no-https=false    # https://admin.test (explicit)
 ```
 
 ---
