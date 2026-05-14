@@ -29,7 +29,7 @@ func initCmd() *cobra.Command {
 			}
 
 			if !dns.IsInstalled() {
-				ui.Warn("dnsmasq not found, installing via brew...")
+				ui.Warn("dnsmasq not found, installing...")
 				if err := dns.Install(); err != nil {
 					return wrap("install dnsmasq", err)
 				}
@@ -44,7 +44,7 @@ func initCmd() *cobra.Command {
 			ui.OK("dnsmasq running")
 
 			if !caddy.IsInstalled() {
-				ui.Warn("Caddy not found, installing via brew...")
+				ui.Warn("Caddy not found, installing...")
 				if err := caddy.Install(); err != nil {
 					return wrap("install caddy", err)
 				}

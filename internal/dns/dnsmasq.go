@@ -355,8 +355,21 @@ func IsAgentRunning() bool {
 }
 
 func Install() error {
+	if platform.Current() == platform.Linux {
+		return installLinuxDnsmasq()
+	}
 	_, err := platform.RunCommand("brew", "install", "dnsmasq")
 	return err
+}
+
+func installLinuxDnsmasq() error {
+	if !platform.CommandExists("apt-get") {
+		return fmt.Errorf("automatic install only supported on apt-based systems — install dnsmasq manually")
+	}
+	if err := platform.RunSudo("apt-get", "install", "-y", "dnsmasq"); err != nil {
+		return fmt.Errorf("install dnsmasq: %w", err)
+	}
+	return nil
 }
 
 func ValidateResolution(domain string) error {

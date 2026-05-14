@@ -146,8 +146,30 @@ func IsInstalled() bool {
 }
 
 func Install() error {
+	if platform.Current() == platform.Linux {
+		return installLinuxCaddy()
+	}
 	_, err := platform.RunCommand("brew", "install", "caddy")
 	return err
+}
+
+func installLinuxCaddy() error {
+	if !platform.CommandExists("apt-get") {
+		return fmt.Errorf("automatic install only supported on apt-based systems — see https://caddyserver.com/docs/install")
+	}
+	cmds := [][]string{
+		{"apt-get", "install", "-y", "debian-keyring", "debian-archive-keyring", "apt-transport-https", "curl"},
+		{"bash", "-c", "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg"},
+		{"bash", "-c", "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list"},
+		{"apt-get", "update"},
+		{"apt-get", "install", "-y", "caddy"},
+	}
+	for _, c := range cmds {
+		if err := platform.RunSudo(c...); err != nil {
+			return fmt.Errorf("install caddy: %w", err)
+		}
+	}
+	return nil
 }
 
 func TrustLocalCA() error {
