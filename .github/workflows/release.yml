@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build and package
+        run: |
+          mkdir -p dist
+          VERSION=${GITHUB_REF_NAME}
+          for GOOS in darwin linux; do
+            for GOARCH in amd64 arm64; do
+              GOOS=$GOOS GOARCH=$GOARCH go build \
+                -ldflags "-X main.version=$VERSION -s -w" \
+                -o dist/domloc \
+                ./cmd/domloc
+              tar -czf dist/domloc-${GOOS}-${GOARCH}.tar.gz -C dist domloc
+              rm dist/domloc
+            done
+          done
+          for GOARCH in amd64 arm64; do
+            GOOS=windows GOARCH=$GOARCH go build \
+              -ldflags "-X main.version=$VERSION -s -w" \
+              -o dist/domloc.exe \
+              ./cmd/domloc
+            zip dist/domloc-windows-${GOARCH}.zip dist/domloc.exe
+            rm dist/domloc.exe
+          done
+
+      - name: Create checksums
+        run: cd dist && sha256sum * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,5 @@
+/domloc
+dist/
+*.test
+*.out
+.claude/
