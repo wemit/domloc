@@ -46,3 +46,36 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+
+          DARWIN_AMD64=$(awk '/domloc-darwin-amd64\.tar\.gz/ {print $1}' dist/checksums.txt)
+          DARWIN_ARM64=$(awk '/domloc-darwin-arm64\.tar\.gz/ {print $1}' dist/checksums.txt)
+          LINUX_AMD64=$(awk '/domloc-linux-amd64\.tar\.gz/ {print $1}' dist/checksums.txt)
+          LINUX_ARM64=$(awk '/domloc-linux-arm64\.tar\.gz/ {print $1}' dist/checksums.txt)
+
+          git clone https://x-access-token:${GH_TOKEN}@github.com/wemit/homebrew-domloc.git tap
+          cd tap
+
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" domloc.rb
+          sed -i "/domloc-darwin-amd64/{ n; s/sha256 \".*\"/sha256 \"${DARWIN_AMD64}\"/ }" domloc.rb
+          sed -i "/domloc-darwin-arm64/{ n; s/sha256 \".*\"/sha256 \"${DARWIN_ARM64}\"/ }" domloc.rb
+          sed -i "/domloc-linux-amd64/{ n; s/sha256 \".*\"/sha256 \"${LINUX_AMD64}\"/ }" domloc.rb
+          sed -i "/domloc-linux-arm64/{ n; s/sha256 \".*\"/sha256 \"${LINUX_ARM64}\"/ }" domloc.rb
+
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git checkout -b "release-${VERSION}"
+          git add domloc.rb
+          git commit -m "domloc v${VERSION}"
+          git push origin "release-${VERSION}"
+
+          curl -s -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/wemit/homebrew-domloc/pulls \
+            -d "{\"title\":\"domloc v${VERSION}\",\"head\":\"release-${VERSION}\",\"base\":\"master\",\"body\":\"Automated formula update for v${VERSION}.\"}"
