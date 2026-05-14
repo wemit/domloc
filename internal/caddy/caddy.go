@@ -68,32 +68,38 @@ func CaddyfilePath() string {
 	return filepath.Join(configDir(), "Caddyfile")
 }
 
-func Generate(routes []registry.Route) error {
+func renderCaddyfile(routes []registry.Route, dataDir string) (string, error) {
 	tmpl, err := template.New("caddyfile").Parse(caddyfileTemplate)
 	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
+		return "", fmt.Errorf("parse template: %w", err)
 	}
+	type data struct {
+		DataDir string
+		Routes  []registry.Route
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data{DataDir: dataDir, Routes: routes}); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
 
+func Generate(routes []registry.Route) error {
 	dataDir := filepath.Join(configDir(), "caddy-data")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("create caddy data dir: %w", err)
+	}
+
+	out, err := renderCaddyfile(routes, dataDir)
+	if err != nil {
+		return err
 	}
 
 	path := CaddyfilePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create Caddyfile: %w", err)
-	}
-	defer f.Close()
-
-	type data struct {
-		DataDir string
-		Routes  []registry.Route
-	}
-	return tmpl.Execute(f, data{DataDir: dataDir, Routes: routes})
+	return os.WriteFile(path, []byte(out), 0644)
 }
 
 func EnsureRoutes(routes []registry.Route) error {

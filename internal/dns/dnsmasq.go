@@ -96,20 +96,27 @@ func IsTLDConfigured(tld string) bool {
 	return false
 }
 
-func writeDnsmasqConf(tlds []string) error {
+func renderDnsmasqConf(tlds []string) (string, error) {
 	tmpl, err := template.New("dnsmasq").Parse(dnsmasqConfTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, dnsmasqConf{Port: dnsmasqPort, TLDs: tlds}); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func writeDnsmasqConf(tlds []string) error {
+	out, err := renderDnsmasqConf(tlds)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(confPath()), 0755); err != nil {
 		return err
 	}
-	f, err := os.Create(confPath())
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return tmpl.Execute(f, dnsmasqConf{Port: dnsmasqPort, TLDs: tlds})
+	return os.WriteFile(confPath(), []byte(out), 0644)
 }
 
 func loadTLDs() ([]string, error) {
