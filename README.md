@@ -25,7 +25,13 @@ Then:
 domloc init
 ```
 
-Requires `dnsmasq` and `caddy` — installed automatically via Homebrew if available, otherwise install manually before running `domloc init`.
+Requires `dnsmasq` and `caddy`. If [Homebrew](https://brew.sh) is available they are installed automatically. Otherwise install them manually before running `domloc init`:
+
+```bash
+# Ubuntu / Debian
+sudo apt install -y dnsmasq
+# caddy: https://caddyserver.com/docs/install#debian-ubuntu-raspbian
+```
 
 ---
 
